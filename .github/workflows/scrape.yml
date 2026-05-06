@@ -1,34 +1,35 @@
 name: Scrape MTProto Proxies
+
 on:
   schedule:
+    # Runs automatically every 6 hours
     - cron: '0 */6 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Allows you to run it manually from the GitHub dashboard
+
 jobs:
   scrape-proxies:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
+        
+    - name: Install Google Chrome
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y google-chrome-stable
+        
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install selenium==4.18.1 webdriver-manager==4.0.1
+        pip install selenium webdriver-manager requests
+        
     - name: Run Proxy Scraper
+      # We put a 20-minute timeout so if Cloudflare blocks the bot, it fails cleanly instead of hanging
+      timeout-minutes: 20
       run: python scrape_bot.py
-    - name: Commit and Push generated proxies
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        if [ -f mtpro_proxies.txt ]; then
-          git add mtpro_proxies.txt
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update mtpro proxies" && git push)
-        else
-          echo "No proxies file generated this run."
-        fi
-
