@@ -11,7 +11,7 @@ from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 
-GITHUB_TOKEN = "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"
+GITHUB_TOKEN = "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"
 REPO = "yamraj0077/telegram-proxy-bot"
 FILE_PATH = "mtpro_proxies.txt"
 
