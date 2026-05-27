@@ -6,6 +6,9 @@ on:
     - cron: '0 */6 * * *'
   workflow_dispatch: # Allows you to run it manually from the GitHub dashboard
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   scrape-proxies:
     runs-on: ubuntu-latest
@@ -15,14 +18,9 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-        
-    - name: Install Google Chrome
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y google-chrome-stable
         
     - name: Install dependencies
       run: |
@@ -30,6 +28,4 @@ jobs:
         pip install selenium webdriver-manager requests
         
     - name: Run Proxy Scraper
-      # We put a 20-minute timeout so if Cloudflare blocks the bot, it fails cleanly instead of hanging
-      timeout-minutes: 20
       run: python scrape_bot.py
