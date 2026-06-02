@@ -71,9 +71,10 @@ def update_github_file(proxies, sha_ignored):
 def check_proxy(proxy_link):
     """
     Improved proxy check function:
-    1. Uses socket.getaddrinfo for better DNS/IP resolution.
-    2. Averages latency over 2 samples if stable.
-    3. Faster failure detection.
+    1. Uses SOCKS5 handshake verification for SOCKS5 proxies.
+    2. Uses plain-text HTTP GET check to weed out standard web servers / CDN endpoints (false-positive MTProto).
+    3. Uses socket.getaddrinfo for better DNS/IP resolution.
+    4. Averages latency over 2 samples if stable.
     """
     try:
         url_part = proxy_link.split('|')[0]
@@ -91,6 +92,9 @@ def check_proxy(proxy_link):
         host = qs['server'][0]
         port = int(qs['port'][0])
         
+        # Distinguish SOCKS5 vs MTProto
+        is_socks = 'socks' in url_part or 'socks' in parsed.scheme
+        
         latencies = []
         for _ in range(2): # Sample 2 times for stability
             start = time.time()
@@ -103,9 +107,37 @@ def check_proxy(proxy_link):
                     s.settimeout(4.0) 
                     try:
                         s.connect(sa)
-                        s.close()
-                        latencies.append(int((time.time() - start) * 1000))
-                        break # Success on this attempt
+                        
+                        if is_socks:
+                            # Verify SOCKS5 proxy handshake
+                            s.sendall(b'\x05\x01\x00')
+                            s.settimeout(2.0)
+                            resp = s.recv(2)
+                            s.close()
+                            if len(resp) == 2 and resp[0] == 5 and resp[1] == 0:
+                                latencies.append(int((time.time() - start) * 1000))
+                                break
+                            else:
+                                continue
+                        else:
+                            # Verify MTProto: detect and reject standard web servers/CDNs that answer plain HTTP
+                            s.sendall(f"GET / HTTP/1.1\r\nHost: {host}\r\n\r\n".encode('utf-8'))
+                            s.settimeout(2.0)
+                            try:
+                                resp = s.recv(128)
+                                if b"HTTP/" in resp or b"html" in resp.lower() or b"HTTP/1.1" in resp or b"HTTP/1.0" in resp:
+                                    # Standard web server detected on this port - NOT a real MTProto proxy!
+                                    s.close()
+                                    continue
+                            except socket.timeout:
+                                # Timeout is standard behavior for an MTProto proxy receiving plain HTTP
+                                pass
+                            except Exception:
+                                pass
+                            
+                            s.close()
+                            latencies.append(int((time.time() - start) * 1000))
+                            break # Success on this attempt
                     except:
                         s.close()
                         continue
