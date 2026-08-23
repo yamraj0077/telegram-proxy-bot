@@ -41,6 +41,7 @@ jobs:
         git config --global user.name "github-actions[bot]"
         git config --global user.email "github-actions[bot]@users.noreply.github.com"
         git add mtpro_proxies.txt proxies_cache.json
-        git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: verified proxies" && git push)
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: verified proxies" && git pull --rebase origin main && git push origin main)
+
 
 
