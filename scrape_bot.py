@@ -189,93 +189,117 @@ def scrape_all():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
+    driver = None
     try:
         print("Starting Chrome Browser natively (relying on Selenium Manager)...")
         driver = webdriver.Chrome(options=options)
         print("Chrome started successfully.")
     except Exception as e:
-        print("Error starting Chrome:", e)
-        import traceback
-        traceback.print_exc()
-        return
+        print("Warning: Could not start Chrome browser:", e)
+        print("Continuing with HTTP fallback proxy scraping and existing proxies verification...")
 
     scraped_proxies = []
 
-    # 1. Scrape MTProto Proxies from mtpro.xyz
-    try:
-        print("Accessing mtpro.xyz...")
-        driver.get('https://mtpro.xyz/mtproto')
-        
-        print("Waiting 15 seconds for Javascript obfuscation...")
-        time.sleep(15)
-
-        print("Extracting MTProto proxies...")
-        html = driver.page_source
-        
-        # Try to extract with country code first
-        matches = re.findall(r'href="(tg://proxy\?[^"]+)".*?country:\s*\'([A-Z]{2})\'', html)
-        mtproto_proxies = []
-        
-        promo_params = "&bot=@yamproxybot&channel=@yamproxy"
-        
-        if matches:
-            for link, country in matches:
-                clean_link = link.replace('&amp;', '&')
-                if "@yamproxy" not in clean_link:
-                    clean_link += promo_params
-                mtproto_proxies.append(f"{clean_link}|{country}")
-        else:
-            links = re.findall(r'(tg://proxy\?[^\x22\x27><]+)', html)
-            for link in links:
-                clean_link = link.replace('&amp;', '&')
-                if "@yamproxy" not in clean_link:
-                    clean_link += promo_params
-                mtproto_proxies.append(clean_link)
+    if driver:
+        # 1. Scrape MTProto Proxies from mtpro.xyz
+        try:
+            print("Accessing mtpro.xyz...")
+            driver.get('https://mtpro.xyz/mtproto')
             
-        mtproto_proxies = list(set(mtproto_proxies))
-        scraped_proxies.extend(mtproto_proxies)
-        print(f"Successfully extracted {len(mtproto_proxies)} active MTProto proxies.")
-    except Exception as e:
-        print("Error scraping mtpro.xyz:", e)
+            print("Waiting 15 seconds for Javascript obfuscation...")
+            time.sleep(15)
 
-    # 2. Scrape SOCKS5 Proxies from proxyservers.pro
-    print("Accessing proxyservers.pro...")
-    for page in range(1, 6):
-        print(f"Scraping SOCKS5 Page {page}...")
-        url = f'https://proxyservers.pro/proxy/list/protocol/socks/order/updated/order_dir/desc/page/{page}'
-        try:
-            driver.get(url)
-            time.sleep(5)
+            print("Extracting MTProto proxies...")
+            html = driver.page_source
+            
+            matches = re.findall(r'href="(tg://proxy\?[^"]+)".*?country:\s*\'([A-Z]{2})\'', html)
+            mtproto_proxies = []
+            
+            promo_params = "&bot=@yamproxybot&channel=@yamproxy"
+            
+            if matches:
+                for link, country in matches:
+                    clean_link = link.replace('&amp;', '&')
+                    if "@yamproxy" not in clean_link:
+                        clean_link += promo_params
+                    mtproto_proxies.append(f"{clean_link}|{country}")
+            else:
+                links = re.findall(r'(tg://proxy\?[^\x22\x27><]+)', html)
+                for link in links:
+                    clean_link = link.replace('&amp;', '&')
+                    if "@yamproxy" not in clean_link:
+                        clean_link += promo_params
+                    mtproto_proxies.append(clean_link)
+                
+            mtproto_proxies = list(set(mtproto_proxies))
+            scraped_proxies.extend(mtproto_proxies)
+            print(f"Successfully extracted {len(mtproto_proxies)} active MTProto proxies from mtpro.xyz.")
         except Exception as e:
-            print(f"Error loading proxyservers.pro page {page}: {e}")
-            continue
-        
-        try:
-            rows = driver.find_elements(By.CSS_SELECTOR, 'tr[valign="top"]')
-            for r in rows:
-                try:
-                    ip = r.find_element(By.CSS_SELECTOR, 'a').text.strip()
-                    port = r.find_element(By.CSS_SELECTOR, 'span.port').text.strip()
-                    img_src = r.find_element(By.CSS_SELECTOR, 'img.icon-flag').get_attribute('src')
-                    
-                    country_match = re.search(r'\/([a-z]{2})\.png', img_src)
-                    country = country_match.group(1).upper() if country_match else ""
-                    
-                    if ip and port:
-                        socks_link = f"tg://socks?server={ip}&port={port}"
-                        if country:
-                            socks_link += f"|{country}"
-                        scraped_proxies.append(socks_link)
-                except Exception as e:
-                    continue
-        except Exception as e:
-            print(f"Error extracting from page {page}")
+            print("Error scraping mtpro.xyz:", e)
 
-    try:
-        driver.quit()
-        print("Chrome closed successfully.")
-    except Exception as e:
-        print("Error closing Chrome:", e)
+        # 2. Scrape SOCKS5 Proxies from proxyservers.pro
+        print("Accessing proxyservers.pro...")
+        for page in range(1, 6):
+            print(f"Scraping SOCKS5 Page {page}...")
+            url = f'https://proxyservers.pro/proxy/list/protocol/socks/order/updated/order_dir/desc/page/{page}'
+            try:
+                driver.get(url)
+                time.sleep(5)
+            except Exception as e:
+                print(f"Error loading proxyservers.pro page {page}: {e}")
+                continue
+            
+            try:
+                rows = driver.find_elements(By.CSS_SELECTOR, 'tr[valign="top"]')
+                for r in rows:
+                    try:
+                        ip = r.find_element(By.CSS_SELECTOR, 'a').text.strip()
+                        port = r.find_element(By.CSS_SELECTOR, 'span.port').text.strip()
+                        img_src = r.find_element(By.CSS_SELECTOR, 'img.icon-flag').get_attribute('src')
+                        
+                        country_match = re.search(r'\/([a-z]{2})\.png', img_src)
+                        country = country_match.group(1).upper() if country_match else ""
+                        
+                        if ip and port:
+                            socks_link = f"tg://socks?server={ip}&port={port}"
+                            if country:
+                                socks_link += f"|{country}"
+                            scraped_proxies.append(socks_link)
+                    except Exception as e:
+                        continue
+            except Exception as e:
+                print(f"Error extracting from page {page}")
+
+        try:
+            driver.quit()
+            print("Chrome closed successfully.")
+        except Exception as e:
+            print("Error closing Chrome:", e)
+
+    # 3. Fallback HTTP Proxy Scraping (SOCKS5 & MTProto lists)
+    print("Scraping fallback public proxy lists via HTTP...")
+    fallback_urls = [
+        'https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/socks5.txt',
+        'https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/socks5.txt',
+        'https://raw.githubusercontent.com/hookzof/socks5_list/master/proxy.txt'
+    ]
+    for target_url in fallback_urls:
+        try:
+            resp = requests.get(target_url, timeout=10)
+            if resp.status_code == 200:
+                lines = resp.text.splitlines()
+                count = 0
+                for line in lines:
+                    line = line.strip()
+                    if line and ':' in line:
+                        parts = line.split(':')
+                        if len(parts) >= 2 and parts[1].isdigit():
+                            socks_link = f"tg://socks?server={parts[0]}&port={parts[1]}"
+                            scraped_proxies.append(socks_link)
+                            count += 1
+                print(f"Scraped {count} proxies from {target_url}")
+        except Exception as err:
+            print(f"Error fetching fallback proxies from {target_url}: {err}")
     
     # 3. Merge, deduplicate, and apply promotional parameters
     raw_proxies = list(set(existing_proxies + scraped_proxies))
