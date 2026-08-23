@@ -1,3 +1,4 @@
+import os
 import time
 import re
 import socket
@@ -10,14 +11,22 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 
-GITHUB_TOKEN = "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"
-REPO = "yamraj0077/telegram-proxy-bot"
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "")
+REPO = os.environ.get("GITHUB_REPOSITORY", "yamraj0077/telegram-proxy-bot")
 FILE_PATH = "mtpro_proxies.txt"
 
 def get_github_file():
+    if not GITHUB_TOKEN:
+        print("GITHUB_TOKEN not provided; reading existing proxies from local file if available.")
+        if os.path.exists(FILE_PATH):
+            with open(FILE_PATH, 'r', encoding='utf-8') as f:
+                proxies = [line.strip() for line in f if line.strip()]
+            return proxies, None
+        return [], None
+
     print(f"Fetching existing proxies from GitHub ({REPO})...")
     url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
     try:
         response = requests.get(url, headers=headers, timeout=15)
         if response.status_code == 200:
@@ -38,11 +47,13 @@ def get_github_file():
         return [], None
 
 def update_github_file(proxies, sha_ignored):
+    if not GITHUB_TOKEN:
+        print("GITHUB_TOKEN not provided; skipping direct GitHub API update. Git commit step in workflow will handle updates.")
+        return
+
     print("Uploading verified proxies back to GitHub...")
-    
-    # Re-fetch SHA to avoid 409 Conflict
     url = f"https://api.github.com/repos/{REPO}/contents/{FILE_PATH}"
-    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
+    headers = {"Authorization": f"Bearer {GITHUB_TOKEN}", "Accept": "application/vnd.github.v3+json"}
     
     try:
         current_sha = None
@@ -62,9 +73,9 @@ def update_github_file(proxies, sha_ignored):
             
         response = requests.put(url, headers=headers, json=data, timeout=15)
         if response.status_code in [200, 201]:
-            print(f"Successfully pushed {len(proxies)} proxies to GitHub!")
+            print(f"Successfully pushed {len(proxies)} proxies to GitHub API!")
         else:
-            print(f"Failed to push to GitHub: {response.status_code} {response.text}")
+            print(f"Failed to push to GitHub API: {response.status_code} {response.text}")
     except Exception as e:
         print(f"Network error pushing to GitHub: {e}")
 
