@@ -6,8 +6,8 @@ on:
     - cron: '0 */6 * * *'
   workflow_dispatch: # Allows you to run it manually from the GitHub dashboard
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+permissions:
+  contents: write
 
 jobs:
   scrape-proxies:
@@ -28,4 +28,14 @@ jobs:
         pip install selenium requests
         
     - name: Run Proxy Scraper
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: python scrape_bot.py
+
+    - name: Commit and push changes
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add mtpro_proxies.txt proxies_cache.json
+        git diff --quiet && git diff --staged --quiet || (git commit -m "Auto-update: verified proxies" && git push)
+
